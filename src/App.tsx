@@ -1,129 +1,79 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { stat } from 'fs';
 import Frame from './components/Templates/Frame';
-import FetchW3w from './Fetch/FetctW3w';
-import FetchPrefAndCityName from './Fetch/FetchPrefAndCityName';
-import FetchPrefCode from './Fetch/FetchPrefCode';
-import FetchCityCode from './Fetch/FetchCityCode';
-import FetchLandPrice from './Fetch/FetchLandPrice';
-import FetchCoordinates from './Fetch/FetchCoordinates';
+import { CityType, PrefType, PrefCityNameType, RadioValue, UserInputs, ApiData } from './contains/types';
+import {
+  useProcessW3w,
+  useProcessCoordinates,
+  useProcessPrefCityName,
+  useProcessPrefData,
+  useProcessCityData,
+  useProcessLandPrice,
+} from './hooks/hooks';
 
 function App() {
-  type RadioValue = 'get_from_3words' | 'get_from_address' | '';
-  interface PrefAndCityName {
-    prefecture: string;
-    city: string;
+  const defaultUserInput: UserInputs = {
+    inputValue: '',
+    selectedValue: '',
+  };
+  const [userInputs, setUserInputs] = useState<UserInputs>(defaultUserInput);
+  const [apiData, setApiData] = useState<ApiData>();
+
+  const handleSubmit = (userInputValues: UserInputs) => {
+    setUserInputs({
+      inputValue: userInputValues.inputValue,
+      selectedValue: userInputValues.selectedValue,
+    });
+  };
+
+  const getLandData = (error: string, prefAndCity: PrefCityNameType) => {
+    if (error === 'DOES NOT EXISTS') {
+      setApiData((prevData) => ({
+        ...prevData!,
+        prefData: null,
+        cityData: null,
+        landPrice: null,
+      }));
+    } else {
+      const prefData = useProcessPrefData({ prefectureName: prefAndCity.prefecture });
+      const cityData = useProcessCityData({ prefCode: prefData.prefCode, cityName: prefAndCity.city });
+      const landPrice = useProcessLandPrice({ prefCode: prefData.prefCode, cityCode: cityData.cityCode });
+      setApiData((prevData) => ({
+        ...prevData!,
+        prefData,
+        cityData,
+        landPrice,
+      }));
+    }
+  };
+
+  if (userInputs.selectedValue !== '') {
+    if (userInputs.selectedValue === 'get_from_3words') {
+      const w3wRes = useProcessW3w({ type: userInputs.selectedValue, words: userInputs.inputValue });
+      if (w3wRes === null) {
+        setApiData((prevData) => ({
+          ...prevData!,
+          prefCityName: null,
+          prefData: null,
+          cityData: null,
+          landPrice: null,
+        }));
+      }
+      const { error, prefAndCity } = useProcessPrefCityName(w3wRes.coordinates);
+      getLandData(error, prefAndCity);
+    } else if (userInputs.selectedValue === 'get_from_address') {
+      const coordinates = useProcessCoordinates({ address: userInputs.inputValue });
+      const w3wRes = useProcessW3w({ type: userInputs.selectedValue, coordinates });
+      const { error, prefAndCity } = useProcessPrefCityName(w3wRes.coordinates);
+      getLandData(error, prefAndCity);
+    }
   }
-  interface Pref {
-    prefCode: number;
-    prefName: string;
-  }
-  interface City {
-    cityCode: number;
-    cityName: string;
-  }
-
-  const [selectedValue, setSelectedType] = useState<RadioValue>('');
-  const [inputValue, setInputValue] = useState<string>('');
-  const [w3wResponse, setW3wResponse] = useState<number[] | string>();
-  const [prefAndCityName, setPrefAndCityName] = useState<PrefAndCityName>();
-  const [prefData, setPrefData] = useState<Pref>();
-  const [cityData, setCityData] = useState<City>();
-  const [landPrice, setLandPrice] = useState<number>();
-  const [coordinates, setCoordinates] = useState<number[]>();
-
-  const handleSubmit = (radioValue: RadioValue, inputText: string) => {
-    console.log(`submitted: ${radioValue}, ${inputText}`);
-    setSelectedType(radioValue);
-    setInputValue(inputText);
-  };
-
-  const handleW3wResponse = (response: number[] | string) => {
-    setW3wResponse(response);
-    console.log(`handle w3w: ${response}`);
-  };
-
-  const handleGerReverseResponse = ({ prefecture, city }: PrefAndCityName) => {
-    setPrefAndCityName({ prefecture, city });
-    console.log(`prefAndCity: ${prefecture}, ${city}`);
-  };
-
-  const getCoordinates = (xy: number[]) => {
-    const [x, y] = [...xy];
-    const reversed = [y, x];
-    setCoordinates(reversed);
-    console.log(reversed);
-  };
-
-  const getPreCode = (pref: Pref) => {
-    setPrefData(pref);
-    console.log(pref);
-  };
-
-  const getCityCode = (city: City) => {
-    setCityData(city);
-    console.log(city);
-  };
-
-  const getLandPrice = (price: number) => {
-    setLandPrice(price);
-    console.log(price);
-  };
-
   return (
     <div className="App">
       <h3>title</h3>
-      <Frame
-        inputValue={inputValue}
-        selectedValue={selectedValue}
-        w3wRes={w3wResponse}
-        prefAndCityName={prefAndCityName}
-        landPrice={landPrice}
-        onSubmit={handleSubmit}
-      />
 
-      {selectedValue === 'get_from_3words' && (
-        <>
-          <FetchW3w type={selectedValue} words={inputValue} setResponse={handleW3wResponse} />
-          {Array.isArray(w3wResponse) && (
-            <FetchPrefAndCityName coordinates={w3wResponse} setResponse={handleGerReverseResponse} />
-          )}
-
-          {prefAndCityName?.prefecture !== undefined && (
-            <FetchPrefCode prefectureName={prefAndCityName.prefecture} setPrefData={getPreCode} />
-          )}
-
-          {prefData !== undefined && (
-            <FetchCityCode prefCode={prefData!.prefCode} cityName={prefAndCityName!.city} setCityData={getCityCode} />
-          )}
-
-          {prefData !== undefined && cityData !== undefined && (
-            <FetchLandPrice prefCode={prefData.prefCode} cityCode={cityData.cityCode} setLandPrice={getLandPrice} />
-          )}
-        </>
-      )}
-      {selectedValue === 'get_from_address' && (
-        <>
-          <FetchCoordinates address={inputValue} setCoordinates={getCoordinates} />
-          {coordinates !== undefined && (
-            <>
-              <FetchPrefAndCityName coordinates={coordinates} setResponse={handleGerReverseResponse} />
-              <FetchW3w type={selectedValue} coordinates={coordinates} setResponse={handleW3wResponse} />
-            </>
-          )}
-          {prefAndCityName?.prefecture !== undefined && (
-            <FetchPrefCode prefectureName={prefAndCityName.prefecture} setPrefData={getPreCode} />
-          )}
-
-          {prefData !== undefined && (
-            <FetchCityCode prefCode={prefData!.prefCode} cityName={prefAndCityName!.city} setCityData={getCityCode} />
-          )}
-
-          {prefData !== undefined && cityData !== undefined && (
-            <FetchLandPrice prefCode={prefData.prefCode} cityCode={cityData.cityCode} setLandPrice={getLandPrice} />
-          )}
-        </>
-      )}
+      <Frame userInputs={userInputs || defaultUserInput} apiData={apiData} onSubmit={handleSubmit} />
     </div>
   );
 }

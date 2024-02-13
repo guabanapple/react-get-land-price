@@ -1,26 +1,36 @@
 import React from 'react';
 import ShowResultFrom3words from '../Molecules/ShowResultFrom3words';
 import ShowResultFromAddress from '../Molecules/ShowResultFromAddress';
+import { UserInputs, ApiData } from '../../contains/types';
 
-type RadioValue = 'get_from_3words' | 'get_from_address' | '';
-interface PrefAndCityName {
-  prefecture: string;
-  city: string;
-}
 interface Props {
-  inputValue: string;
-  selectedValue: RadioValue;
-  w3wRes: number[] | string;
-  prefAndCityName: PrefAndCityName;
-  landPrice: number;
+  userInputs: UserInputs;
+  apiData: ApiData;
 }
 
-function ShowResult({ inputValue, selectedValue, w3wRes, prefAndCityName, landPrice }: Props) {
-  return selectedValue === 'get_from_3words' ? (
-    <ShowResultFrom3words inputValue={inputValue} prefAndCityName={prefAndCityName} landPrice={landPrice} />
-  ) : (
-    <ShowResultFromAddress inputValue={inputValue} w3wRes={w3wRes} landPrice={landPrice} />
-  );
+function ShowResult({ userInputs, apiData }: Props) {
+  if (userInputs.selectedValue === 'get_from_3words') {
+    if (apiData.prefCityName === null || apiData.landPrice === null) return null;
+    return (
+      <ShowResultFrom3words
+        inputValue={userInputs.inputValue}
+        prefAndCityName={apiData.prefCityName}
+        landPrice={apiData.landPrice}
+      />
+    );
+  }
+  if (userInputs.selectedValue === 'get_from_address') {
+    if (apiData.w3wResponse === null || apiData.landPrice === null) return null;
+    return (
+      <ShowResultFromAddress
+        inputValue={userInputs.inputValue}
+        w3wRes={apiData.w3wResponse}
+        landPrice={apiData.landPrice}
+      />
+    );
+  }
+
+  return null;
 }
 
 export default ShowResult;
